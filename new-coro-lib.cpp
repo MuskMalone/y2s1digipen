@@ -34,10 +34,10 @@ namespace CORO{
     std::deque<Thread> finish;
     std::map<CORO::ThreadID, std::pair<Thread*, void*>> waiting; // key is the thread they are waiting for, thread is itself
     Thread* currThread;
-
+    TCB mainThread;
     TCB* get_new_tcb(){
         
-        static unsigned id = 0;
+        static unsigned id = 1;
         TCB* out{};
         if (out = (TCB*)malloc(sizeof(TCB)))
             out->id = id++;
@@ -67,40 +67,17 @@ void thd_init(){
     //init the main thread
     ::running.clear();
     //ready.clear();
-    TCB *tcb{};
-    if (!(tcb = get_new_tcb())) abort();
-    if (getcontext(&tcb->context) == -1){
+    TCB tcb{};
+    if (getcontext(&(tcb.context)) == -1){
         std::cout << "init failed" << std::endl;
-
-        destroy_tcb(tcb);
         abort();
     }
 
-    void *stack;
-
-    if ((stack = malloc(MEGABYTE)) == NULL) {
-        std::cout << "stack alloc failed" << std::endl;
-
-        abort();
-    }
-
-    // Update the thread control bock
-
-    tcb->context.uc_stack.ss_flags = 0;
-    tcb->context.uc_stack.ss_size = MEGABYTE;
-    tcb->context.uc_stack.ss_sp = stack;
-    tcb->stackAllocated = true;
-    tcb->state = RUNNING;
-    Thread t{tcb, nullptr, nullptr};
-
-
-    ::running.push_back(t);
-    currThread = &(running.front());
-    makecontext(&(tcb->context), thread_wrapper, 0);
-    setcontext(&currThread->tcb->context);
+    mainThread = tcb;
 }
 
 ThreadID new_thd( void*(*routine)(void*), void*args){
+    std::cout << "new_thd\n";
     TCB* tcb;
     if (!(tcb = get_new_tcb())) abort();
     if (getcontext(&tcb->context) == -1){
@@ -131,9 +108,7 @@ ThreadID new_thd( void*(*routine)(void*), void*args){
     running.push_back(t);
     std::cout << "makecontext\n";
     makecontext(&(tcb->context), thread_wrapper, 0);
-
-    if (running.size() == 1)
-        setcontext(&currThread->tcb->context);
+    currThread = &(running.front());
     return running.back().tcb->id;
 }
 
@@ -142,8 +117,14 @@ void thread_exit(void * return_value){
     currThread->tcb->state = DONE;
     ::running.pop_front();
     if (running.size() > 0){
+        std::cout << "running > 0\n";
         currThread = &(running.front());
         setcontext(&currThread->tcb->context);  // also unblocks SIGPROF
+    }
+    else{
+        std::cout << "!running > 0\n";
+
+        setcontext(&(mainThread.context));
     }
     std::cout << return_value << std::endl;
 }

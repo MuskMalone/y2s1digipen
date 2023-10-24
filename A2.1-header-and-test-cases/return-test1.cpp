@@ -28,8 +28,8 @@ int main()
     for (i=0; i<5; i++)
     {
         long long thd_ret_value;
-        CORO::wait_thread(thd_ids[i], (void**)&thd_ret_value);
-        printf("Thread %u returns %lld\n", thd_ids[i], thd_ret_value);
+        int stat = CORO::wait_thread(thd_ids[i], (void**)&thd_ret_value);
+        printf("Thread %u returns %lld status %d\n ", thd_ids[i], thd_ret_value, stat);
     }
     printf("nosegfault5\n");
 
