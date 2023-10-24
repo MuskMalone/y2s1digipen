@@ -10,7 +10,7 @@
 
 namespace CORO{
     enum ThreadState : int{
-        RUNNING = 0, READY, WAITING, START, DONE
+        RUNNING = 0, DONE
     };
 }
 namespace{
@@ -53,7 +53,11 @@ namespace{
     }
 
     void thread_wrapper(){
-        void* op = currThread->routine(currThread->args);
+        std::cout << "thread_wrapper\n";
+        
+        void* op = nullptr;
+        if (currThread->routine) 
+            op = currThread->routine(currThread->args);
         currThread->retval = op;
         std::cout << op << '\n';
         CORO::thread_exit(op);
@@ -79,6 +83,11 @@ void thd_init(){
     ::running.push_back(t);
     tcb->state = RUNNING;
     currThread = &(running.front());
+    tcb->context;
+    std::cout << "makecontextstart\n";
+    makecontext(&(tcb->context), thread_wrapper, 0);
+     std::cout << "makecontextend\n";
+    setcontext(&currThread->tcb->context);
 }
 
 ThreadID new_thd( void*(*routine)(void*), void*args){
@@ -91,18 +100,11 @@ ThreadID new_thd( void*(*routine)(void*), void*args){
         abort();
     }
 
-    struct rlimit limit;
-
-    if (getrlimit(RLIMIT_STACK, &limit) == -1) {
-        std::cout << "rlimit failed" << std::endl;
-        abort();
-    }
-
     // Allocate memory
 
     void *stack;
 
-    if ((stack = malloc(limit.rlim_cur)) == NULL) {
+    if ((stack = malloc(MEGABYTE)) == NULL) {
         std::cout << "stack alloc failed" << std::endl;
 
         abort();
@@ -111,14 +113,17 @@ ThreadID new_thd( void*(*routine)(void*), void*args){
     // Update the thread control bock
 
     tcb->context.uc_stack.ss_flags = 0;
-    tcb->context.uc_stack.ss_size = limit.rlim_cur;
+    tcb->context.uc_stack.ss_size = MEGABYTE;
     tcb->context.uc_stack.ss_sp = stack;
     tcb->stackAllocated = true;
     Thread t{tcb, routine, args};
-    tcb->state = READY;
+    tcb->state = RUNNING;
     running.push_back(t);
+    std::cout << "makecontext\n";
     makecontext(&(tcb->context), thread_wrapper, 0);
 
+    if (running.size() == 1)
+        setcontext(&currThread->tcb->context);
     return running.back().tcb->id;
 }
 
@@ -126,8 +131,10 @@ void thread_exit(void * return_value){
     finish.push_back(*currThread);
     currThread->tcb->state = DONE;
     ::running.pop_front();
-    currThread = &(running.front());
-    setcontext(&currThread->tcb->context);  // also unblocks SIGPROF
+    if (running.size() > 0){
+        currThread = &(running.front());
+        setcontext(&currThread->tcb->context);  // also unblocks SIGPROF
+    }
 }
 int wait_thread(ThreadID id, void **value){
     // Check if the thread has already terminated
@@ -142,7 +149,7 @@ int wait_thread(ThreadID id, void **value){
 
     // If the thread hasn't terminated, suspend the current thread and move it to the waiting state
     waiting[id] = std::make_pair(currThread, value);
-    currThread->tcb->state = WAITING;
+    //currThread->tcb->state = WAITING;
 
     // Schedule another thread to run
     if (!running.empty()) {
