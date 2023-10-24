@@ -1,0 +1,21 @@
+uShell>setvar HAHA hoohoo # assign the value hoohoo to HAHA
+uShell>echo ${HAHA} # calling out the value of HAHA
+hoohoo
+uShell>setvar haha # variable haha is defined and given a default value.
+uShell>echo ${Haha}123 # Attempting to call out the value of an undefined variable.
+Error: Haha is not a defined variable.
+uShell>echo ${HAHA}123 # disambiguate the beginning and end of the var name
+hoohoo123
+uShell>echo ${HAHA }123 # wrong use of curly braces. Would be read as 2 separate words.
+${HAHA }123
+uShell>echo $${HAHA} # $ sign can be used together with variables
+$hoohoo
+uShell>echo ${${HAHA}} # nested use of curly braces are not supported
+${hoohoo}
+uShell>changeprompt asd
+asd>changeprompt gree sad
+gree sad>changeprompt as_Asd fd
+as_Asd fd>changeprompt asfc # sad
+asfc>changeprompt #asd
+#asd>changeprompt asd asd#ds
+asd asd#ds>exit
