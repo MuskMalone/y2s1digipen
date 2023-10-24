@@ -13,8 +13,6 @@ namespace CORO{
         RUNNING = 0, DONE
     };
 }
-namespace{
-
     struct TCB{
         CORO::ThreadID id;
         ucontext_t context;
@@ -62,7 +60,6 @@ namespace{
         std::cout << op << '\n';
         CORO::thread_exit(op);
     }
-}
 namespace CORO
 {
 
@@ -71,7 +68,6 @@ void thd_init(){
     ::running.clear();
     //ready.clear();
     TCB *tcb{};
-    Thread t{};
     if (!(tcb = get_new_tcb())) abort();
     if (getcontext(&tcb->context) == -1){
         std::cout << "init failed" << std::endl;
@@ -79,14 +75,28 @@ void thd_init(){
         destroy_tcb(tcb);
         abort();
     }
-    t.tcb = tcb;
-    ::running.push_back(t);
+
+    void *stack;
+
+    if ((stack = malloc(MEGABYTE)) == NULL) {
+        std::cout << "stack alloc failed" << std::endl;
+
+        abort();
+    }
+
+    // Update the thread control bock
+
+    tcb->context.uc_stack.ss_flags = 0;
+    tcb->context.uc_stack.ss_size = MEGABYTE;
+    tcb->context.uc_stack.ss_sp = stack;
+    tcb->stackAllocated = true;
     tcb->state = RUNNING;
+    Thread t{tcb, nullptr, nullptr};
+
+
+    ::running.push_back(t);
     currThread = &(running.front());
-    tcb->context;
-    std::cout << "makecontextstart\n";
     makecontext(&(tcb->context), thread_wrapper, 0);
-     std::cout << "makecontextend\n";
     setcontext(&currThread->tcb->context);
 }
 
@@ -135,6 +145,7 @@ void thread_exit(void * return_value){
         currThread = &(running.front());
         setcontext(&currThread->tcb->context);  // also unblocks SIGPROF
     }
+    std::cout << return_value << std::endl;
 }
 int wait_thread(ThreadID id, void **value){
     // Check if the thread has already terminated
